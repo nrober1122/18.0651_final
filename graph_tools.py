@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.linalg as la
 from matplotlib import pyplot as plt
+from colour import Color
 
 def linear_interpolation_unit_spacing(wpt1: np.array, wpt2: np.array, odom_dist: float = 1.0) -> np.ndarray:
     direction = (wpt2 - wpt1)/la.norm(wpt2 - wpt1)
@@ -31,13 +32,14 @@ class Graph():
             waypoints = np.array(
                 [
                     [0, 0],
-                    [2, 0],
-                    [2, 2],
+                    [10, 0],
+                    [10, 10],
                     [0, 0],
-                    # [0, -10],
-                    # [10, -10],
-                    # [10, 0],
-                    # [0, 0],
+                    [0, -10],
+                    [10, -10],
+                    [10, 0],
+                    [0, 0],
+                    [0, 10]
                 ]
             )
         self.waypoints = waypoints
@@ -131,19 +133,23 @@ class Graph():
         return self.degree_matrix() - self.adjacency_matrix()
 
     def plot(self):
+        orange = Color("orange")
+        num_segments = np.trace(self.degree_matrix())
+        colors = list(orange.range_to(Color("purple"), int(num_segments)))
+        seg_counter = 0
+
         for key in self.graph:
             pt = np.array(key)
             plt.scatter(pt[0], pt[1], c='k')
             for next_pt in self.graph[key]:
                 pts = np.vstack((pt, next_pt)).T
-                plt.plot(pts[0], pts[1])
-            
+                plt.plot(pts[0], pts[1], c=colors[seg_counter].hex)
+                seg_counter += 1
+        
         plt.gca().set_aspect('equal')
         plt.show()
 
 if __name__ == "__main__":
     g = Graph(max_dist=0.5)
-    deg = g.degree_matrix()
-    adj = g.adjacency_matrix()
-    import pdb; pdb.set_trace()
+    lap = g.laplacian()
     g.plot()
