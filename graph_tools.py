@@ -1,7 +1,6 @@
 import numpy as np
 import numpy.linalg as la
-from scipy import interpolate
-from collections import namedtuple
+from matplotlib import pyplot as plt
 
 def linear_interpolation_unit_spacing(wpt1: np.array, wpt2: np.array, odom_dist: float = 1.0) -> np.ndarray:
     direction = (wpt2 - wpt1)/la.norm(wpt2 - wpt1)
@@ -25,18 +24,6 @@ def linear_interpolation(wpt1: np.array, wpt2: np.array, odom_dist: float = 1.0,
 
     return pts
 
-
-
-# Not used currently
-# class Node():
-#     def __init__(self, coord: np.array, parent = None, child = None) -> None:
-#         self.parent = parent
-#         self.child = child
-#         self.coord = coord
-    
-
-Node = namedtuple('Node', ['key', 'coord'])
-
 # class used to do various functions relating to graph/laplacian generation
 class Graph():
     def __init__(self, waypoints = None, odom_dist = 1, max_dist = 0.25) -> None:
@@ -44,13 +31,13 @@ class Graph():
             waypoints = np.array(
                 [
                     [0, 0],
-                    [10, 0],
-                    [10, 10],
-
+                    [2, 0],
+                    [2, 2],
                     [0, 0],
                     # [0, -10],
                     # [10, -10],
-                    # [10, 10]
+                    # [10, 0],
+                    # [0, 0],
                 ]
             )
         self.waypoints = waypoints
@@ -63,8 +50,8 @@ class Graph():
 
     # Generate a dict representation of a graph representation of the connected keypoints between waypoints
     def generate_graph(self) -> np.ndarray:
-        self.graph = {}
-        self.graph_keys = {}
+        self.graph = {} # map coordinate -> neighboring coordinate
+        self.graph_keys = {} # map coordinate -> index (for use in laplacian)
         num_waypoints = len(self.waypoints)
 
         kpts = None
@@ -82,6 +69,7 @@ class Graph():
 
         for i, kpt in enumerate(kpts):
             self.add_node(i, kpt, kpts)
+        
     
     # Add a keypoint to the graph during initial generation
     def add_node(self, index: int, pt: np.array, kpts: np.ndarray) -> None:
@@ -96,33 +84,66 @@ class Graph():
                 added = True
         
         if not added:
+            self.graph_keys[tuple(pt)] = len(self.graph)
             self.graph[tuple(pt)] = []
                 
         
         if index > 0:
-            self.graph[tuple(pt)].append(kpts[index-1])
+            if not tuple(kpts[index-1]) in [tuple(arr) for arr in self.graph[tuple(pt)]]:
+                self.graph[tuple(pt)].append(kpts[index-1])
         if index < num_kpts - 1:
-            self.graph[tuple(pt)].append(kpts[index+1])
+            if not tuple(kpts[index+1]) in [tuple(arr) for arr in self.graph[tuple(pt)]]:
+                self.graph[tuple(pt)].append(kpts[index+1])
 
-        # for existing_node in self.graph:
-        #     # existing_pt = np.array(existing_pt_tup)
-        #     dist = la.norm(pt - existing_node.coord)
-        #     if dist < self.max_dist:
-        #         pt = existing_node.coord
-        #         added = True
-        
-        # if not added:
-        #     import pdb; pdb.set_trace()
-        #     node_key = len(self.graph)
-        #     node = Node(node_key, pt)
-        #     self.graph[node_key] = []
-                
-        
-        # if index > 0:
-        #     self.graph[tuple(pt)].append(kpts[index-1])
-        # if index < num_kpts - 1:
-        #     self.graph[tuple(pt)].append(kpts[index+1])
+    def degree_matrix(self) -> np.ndarray:
+        num_pts = len(self.graph)
+        deg = np.zeros((num_pts, num_pts))
 
+        indices = list(self.graph_keys.values())
+        coords = list(self.graph_keys.keys())
+
+        for i in range(num_pts):
+            idx = indices.index(i)
+            deg[i, i] = len(self.graph[coords[idx]])
+        
+        return deg
+    
+    def adjacency_matrix(self) -> np.ndarray:
+        num_pts = len(self.graph)
+        adjacent = np.zeros((num_pts, num_pts))
+
+        indices = list(self.graph_keys.values())
+        coords = list(self.graph_keys.keys())
+
+        for i in range(num_pts):
+            idx = indices.index(i)
+            graph_key = coords[idx]
+
+            neighbors = [tuple(pt) for pt in self.graph[graph_key]]
+            for neighbor in neighbors:
+                idx_n = coords.index(neighbor)
+                adjacent[idx, idx_n] = 1
+
+        # import pdb; pdb.set_trace()
+        return adjacent
+
+    def laplacian(self) -> np.ndarray:
+        return self.degree_matrix() - self.adjacency_matrix()
+
+    def plot(self):
+        for key in self.graph:
+            pt = np.array(key)
+            plt.scatter(pt[0], pt[1], c='k')
+            for next_pt in self.graph[key]:
+                pts = np.vstack((pt, next_pt)).T
+                plt.plot(pts[0], pts[1])
+            
+        plt.gca().set_aspect('equal')
+        plt.show()
 
 if __name__ == "__main__":
-    g = Graph()
+    g = Graph(max_dist=0.5)
+    deg = g.degree_matrix()
+    adj = g.adjacency_matrix()
+    import pdb; pdb.set_trace()
+    g.plot()
