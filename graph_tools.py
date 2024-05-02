@@ -46,9 +46,6 @@ class Graph():
         self.max_dist = max_dist
         self.odom_dist = odom_dist
         self._generate_graph()
-    
-    def calculate_adjacency(self) -> np.ndarray:
-        print('Not done yet')
 
     # Generate a dict representation of a graph representation of the connected keypoints between waypoints
     def _generate_graph(self) -> np.ndarray:
@@ -70,12 +67,17 @@ class Graph():
                 kpts = np.vstack((kpts, linear_interpolation(self.waypoints[i], self.waypoints[i+1], self.odom_dist, final_wpt=final_waypoint)))
 
         for i, kpt in enumerate(kpts):
-            self._add_node(i, kpt, kpts)
+            neighbors = [] 
+            if i > 0:
+                neighbors.append(kpts[i-1])
+            if i < len(kpts) - 1:
+                neighbors.append(kpts[i+1])
+
+            self.add_node(kpt, neighbors)
         
     
     # Add a keypoint to the graph during initial generation
-    def _add_node(self, index: int, pt: np.array, kpts: np.ndarray) -> None:
-        num_kpts = len(kpts)
+    def add_node(self, pt: np.array, neighbors: list) -> None:
         added = False
 
         for existing_pt_tup in self.graph_dict:
@@ -89,13 +91,9 @@ class Graph():
             self.graph_keys[tuple(pt)] = len(self.graph_dict)
             self.graph_dict[tuple(pt)] = []
                 
-        
-        if index > 0:
-            if not self._neighbor_in_list(pt, kpts[index-1]):
-                self.graph_dict[tuple(pt)].append(kpts[index-1])
-        if index < num_kpts - 1:
-            if not self._neighbor_in_list(pt, kpts[index+1]):
-                self.graph_dict[tuple(pt)].append(kpts[index+1])
+        for neighbor in neighbors:
+            if not self._neighbor_in_list(pt, neighbor):
+                self.graph_dict[tuple(pt)].append(neighbor)
 
     # returns true if the candidate neighbor is already in the neighbor list
     def _neighbor_in_list(self, pt: np.array, pt_to_add: np.array) -> bool:

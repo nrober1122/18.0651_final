@@ -4,8 +4,8 @@ from matplotlib import pyplot as plt
 from graph_tools import Graph
 
 class Laplacian_Handler():
-    def __init__(self, waypoints = None, odom_dist = 1, max_dist = 0.25) -> None:
-        self.graph = Graph(waypoints, odom_dist, max_dist)
+    def __init__(self, graph) -> None:
+        self.graph = graph
         
         self.lap = self.graph.reduced_laplacian()
         self.lap_det = la.det(self.lap)
@@ -24,7 +24,8 @@ class Laplacian_Handler():
         return self.lap_det
 
 if __name__ == '__main__':
-    l = Laplacian_Handler()
+    g = Graph()
+    l = Laplacian_Handler(g)
     print(l.lap_det)
 
     print(l.add_edge(73, 20))
