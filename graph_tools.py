@@ -49,8 +49,8 @@ class Graph():
 
     # Generate a dict representation of a graph representation of the connected keypoints between waypoints
     def _generate_graph(self) -> np.ndarray:
-        self.graph_dict = {} # map coordinate -> neighboring coordinate
-        self.graph_keys = {} # map coordinate -> index (for use in laplacian)
+        self.graph_keys = {}  # map index (for use in laplacian) -> coordinate
+        self.graph_edges = {} # map index -> neighboring indices
         num_waypoints = len(self.waypoints)
 
         kpts = None
@@ -69,64 +69,62 @@ class Graph():
         for i, kpt in enumerate(kpts):
             neighbors = [] 
             if i > 0:
-                neighbors.append(kpts[i-1])
+                neighbors.append(i-1)
             if i < len(kpts) - 1:
-                neighbors.append(kpts[i+1])
+                neighbors.append(i+1)
 
-            self.add_node(kpt, neighbors)
-        
+            self.add_node(i, kpt, neighbors)
     
     # Add a keypoint to the graph during initial generation
-    def add_node(self, pt: np.array, neighbors: list) -> None:
-        added = False
+    def add_node(self, node_idx: int, node_pt: np.array, neighbors: list) -> None:
+        existing_idxs = []
 
-        for existing_pt_tup in self.graph_dict:
+        for idx, existing_pt_tup in self.graph_keys.items():
             existing_pt = np.array(existing_pt_tup)
-            dist = la.norm(pt - existing_pt)
+            dist = la.norm(node_pt - existing_pt)
             if dist < self.max_dist:
-                pt = existing_pt
-                added = True
+                node_pt = existing_pt
+                existing_idxs.append(idx)
         
-        if not added:
-            self.graph_keys[tuple(pt)] = len(self.graph_dict)
-            self.graph_dict[tuple(pt)] = []
+        self.graph_keys[node_idx] = node_pt
+        self.graph_edges[node_idx] = []
+        neighbors += existing_idxs
                 
         for neighbor in neighbors:
-            if not self._neighbor_in_list(pt, neighbor):
-                self.graph_dict[tuple(pt)].append(neighbor)
+            if not self._neighbor_in_list(node_idx, neighbor):
+                self.graph_edges[node_idx].append(neighbor)
+            if neighbor in self.graph_edges and not self._neighbor_in_list(neighbor, node_idx):
+                self.graph_edges[neighbor].append(node_idx)
 
     # returns true if the candidate neighbor is already in the neighbor list
-    def _neighbor_in_list(self, pt: np.array, pt_to_add: np.array) -> bool:
-        return tuple(pt_to_add) in [tuple(arr) for arr in self.graph_dict[tuple(pt)]]
+    def _neighbor_in_list(self, idx: int, idx_to_add: int) -> bool:
+        return idx_to_add in self.graph_edges[idx]
 
     def degree_matrix(self) -> np.ndarray:
-        num_pts = len(self.graph_dict)
+        num_pts = len(self.graph_edges)
         deg = np.zeros((num_pts, num_pts))
 
-        indices = list(self.graph_keys.values())
-        coords = list(self.graph_keys.keys())
+        indices = list(self.graph_keys.keys())
 
         for i in range(num_pts):
             idx = indices.index(i)
-            deg[i, i] = len(self.graph_dict[coords[idx]])
+            deg[i, i] = len(self.graph_edges[idx])
         
         return deg
     
     def adjacency_matrix(self) -> np.ndarray:
-        num_pts = len(self.graph_dict)
+        num_pts = len(self.graph_edges)
         adjacent = np.zeros((num_pts, num_pts))
 
-        indices = list(self.graph_keys.values())
-        coords = list(self.graph_keys.keys())
+        indices = list(self.graph_keys.keys())
 
         for i in range(num_pts):
             idx = indices.index(i)
-            graph_key = coords[idx]
+            graph_key = idx
 
-            neighbors = [tuple(pt) for pt in self.graph_dict[graph_key]]
+            neighbors = self.graph_edges[graph_key]
             for neighbor in neighbors:
-                idx_n = coords.index(neighbor)
-                adjacent[idx, idx_n] = 1
+                adjacent[idx, neighbor] = 1
 
         # import pdb; pdb.set_trace()
         return adjacent
@@ -140,24 +138,10 @@ class Graph():
     
     # add edge to graph and calculate new determinant
     def add_edge(self, node1: int, node2: int) -> None:
-        # TODO ask question about reducing matrices - what if we remove node 0 but want to connect that edge?
-        indices = list(self.graph_keys.values())
-        coords = list(self.graph_keys.keys())
-
-        idx_node1, idx_node2 = indices.index(node1), indices.index(node2)
-        coords_node1, coords_node2 = coords[idx_node1], coords[idx_node2]
-
-        if not self._neighbor_in_list(np.array(coords_node1), np.array(coords_node2)):
-            self.graph_dict[coords_node1].append(np.array(coords_node2))
-        if not self._neighbor_in_list(np.array(coords_node2), np.array(coords_node1)):
-            self.graph_dict[coords_node2].append(np.array(coords_node1))
-
-        
-
-
-
-        
-
+        if not self._neighbor_in_list(node1, node2):
+            self.graph_edges[node1].append(node2)
+        if not self._neighbor_in_list(node2, node1):
+            self.graph_edges[node2].append(node1)
 
     def plot(self):
         orange = Color("orange")
@@ -166,18 +150,20 @@ class Graph():
         seg_counter = 0
         delta = 0.1
 
-        for key in self.graph:
-            pt = np.array(key)
+        for idx in self.graph_keys:
+            pt = np.array(self.graph_keys[idx])
             plt.scatter(pt[0], pt[1], c='k')
-            plt.text(pt[0] + delta, pt[1] + delta, self.graph_keys[key], size='small')
+            plt.text(pt[0] + delta, pt[1] + delta, idx, size='small')
             
-            for next_pt in self.graph_dict[key]: # plot edges from pt
+            for next_idx in self.graph_edges[idx]: # plot edges from pt
+                next_pt = self.graph_keys[next_idx]
                 pts = np.vstack((pt, next_pt)).T
                 plt.plot(pts[0], pts[1], c=colors[seg_counter].hex)
                 seg_counter += 1
         
         plt.gca().set_aspect('equal')
         plt.show()
+        
 
 if __name__ == "__main__":
     g = Graph(max_dist=0.5)
