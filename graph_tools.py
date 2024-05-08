@@ -74,6 +74,20 @@ class Graph():
                 neighbors.append(i+1)
 
             self.add_node(i, kpt, neighbors)
+
+    def add_nodes_to_waypoint(self, waypoint: np.ndarray) -> None:
+        self.waypoints = np.vstack([self.waypoints, waypoint.reshape((1,2))])
+        kpts = linear_interpolation(self.waypoints[-2], self.waypoints[-1], self.odom_dist, final_wpt=True)
+        num_nodes = len(self.graph_keys)
+        
+        for mod_i, kpt in enumerate(kpts):
+            neighbors = [] 
+            i = num_nodes + mod_i
+            neighbors.append(i-1)
+            if i < len(kpts) - 1:
+                neighbors.append(i+1)
+
+            self.add_node(i, kpt, neighbors)
     
     # Add a keypoint to the graph during initial generation
     def add_node(self, node_idx: int, node_pt: np.array, neighbors: list) -> None:
@@ -162,6 +176,8 @@ class Graph():
                 seg_counter += 1
         
         plt.gca().set_aspect('equal')
+        plt.xlabel('x (m)')
+        plt.ylabel('y (m)')
         plt.show()
         
 
