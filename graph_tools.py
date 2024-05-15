@@ -75,9 +75,10 @@ class Graph():
 
             self.add_node(i, kpt, neighbors)
 
-    def add_nodes_to_waypoint(self, waypoint: np.ndarray) -> None:
+    def add_nodes_to_waypoint(self, waypoint: np.ndarray, intermediate_lc=False) -> None:
+        # intermediate_lc should be set to true if intermediate loop closures (non-waypoint nodes) should be found
         self.waypoints = np.vstack([self.waypoints, waypoint.reshape((1,2))])
-        kpts = linear_interpolation(self.waypoints[-2], self.waypoints[-1], self.odom_dist, final_wpt=True)
+        kpts = linear_interpolation(self.waypoints[-2], self.waypoints[-1], self.odom_dist, final_wpt=True)[1:]
         num_nodes = len(self.graph_keys)
         
         for mod_i, kpt in enumerate(kpts):
@@ -87,18 +88,20 @@ class Graph():
             if i < len(kpts) - 1:
                 neighbors.append(i+1)
 
-            self.add_node(i, kpt, neighbors)
+            lc = intermediate_lc or mod_i == len(kpts) - 1
+            self.add_node(i, kpt, neighbors, lc) # optionally only look for loop closures at waypoint
     
     # Add a keypoint to the graph during initial generation
-    def add_node(self, node_idx: int, node_pt: np.array, neighbors: list) -> None:
+    def add_node(self, node_idx: int, node_pt: np.array, neighbors: list, lc: bool = True) -> None:
         existing_idxs = []
 
-        for idx, existing_pt_tup in self.graph_keys.items():
-            existing_pt = np.array(existing_pt_tup)
-            dist = la.norm(node_pt - existing_pt)
-            if dist < self.max_dist:
-                node_pt = existing_pt
-                existing_idxs.append(idx)
+        if lc:
+            for idx, existing_pt_tup in self.graph_keys.items():
+                existing_pt = np.array(existing_pt_tup)
+                dist = la.norm(node_pt - existing_pt)
+                if dist < self.max_dist:
+                    node_pt = existing_pt
+                    existing_idxs.append(idx)
         
         self.graph_keys[node_idx] = node_pt
         self.graph_edges[node_idx] = []
@@ -178,7 +181,6 @@ class Graph():
         plt.gca().set_aspect('equal')
         plt.xlabel('x (m)')
         plt.ylabel('y (m)')
-        plt.show()
         
 
 if __name__ == "__main__":
